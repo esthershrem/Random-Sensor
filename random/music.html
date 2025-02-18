@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live BPM & Song Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #000000;
+            color: white;
+        }
+        h1 { color: #f39c12; }
+        #bpm { font-size: 24px; margin: 20px 0; }
+        .song-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        .song {
+            padding: 10px;
+            border: 5px solid white;
+            border-radius: 5px;
+        }
+        .playing {
+            border-color: #2ecc71; /* Green for playing song */
+        }
+        img {
+            width: 200px;
+            height: 200px;
+            border-radius: 5px;
+        }
+        #heart-image {
+            width: 600px;
+            height: 200px;
+            border-radius: 10px;
+            display: block;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Live BPM & Song Tracker</h1>
+    <p id="bpm">BPM: Waiting...</p>
+    <img id="heart-image" src="images/heart.jpg">
+    <div class="song-container">
+        <div class="song" id="high">
+            <img src="images/home.jpeg" alt="That Home">
+            <p>That Home</p>
+        </div>
+        <div class="song" id="normal">
+            <img src="images/way.jpeg" alt="I'm On My Way">
+            <p>I'm On My Way</p>
+        </div>
+        <div class="song" id="low">
+            <img src="images/edge.jpeg" alt="Edge of Seventeen">
+            <p>Edge of Seventeen</p>
+        </div>
+    </div>
+
+    <audio id="audio-player" style="display: none;" autoplay>
+        <source id="audio-source" src="" type="audio/mp3">
+    </audio>
+
+    <script>
+        const socket = new WebSocket("ws://localhost:6790");
+
+        socket.onopen = function(event) {
+            console.log("WebSocket is connected.");
+        };
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            // Log the data received to verify the song information
+            console.log(data);
+
+            const bpm = data.bpm;
+            const song = data.song;
+
+            // Update the BPM display
+            document.getElementById('bpm').textContent = `BPM: ${bpm}`;
+
+            // Remove the 'playing' class from all songs
+            const songs = document.querySelectorAll('.song');
+            songs.forEach(songElement => {
+                songElement.classList.remove('playing'); // Clear all previous 'playing' styles
+            });
+
+            // Add the 'playing' class to the current song element
+            const songElement = document.getElementById(song);
+            if (songElement) {
+                songElement.classList.add('playing'); // Add 'playing' to the active song
+            }
+
+            // Update the audio source and play the song
+            const audioPlayer = document.getElementById("audio-player");
+            const audioSource = document.getElementById("audio-source");
+
+            audioSource.src = `music/${song}.mp3`;
+            audioPlayer.load();
+            audioPlayer.play();
+        };
+
+        socket.onerror = function(error) {
+            console.error("WebSocket Error: ", error);
+        };
+
+        socket.onclose = function(event) {
+            console.log("WebSocket connection closed: ", event);
+        };
+    </script>
+</body>
+</html>
