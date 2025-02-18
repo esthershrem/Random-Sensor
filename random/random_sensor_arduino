@@ -1,0 +1,111 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire);
+
+#define SENSOR_PIN A0
+#define WINDOW_SIZE 20 // Moving average window size
+#define PEAK_THRESHOLD 30 // Minimum change required to detect a pulse
+#define MIN_BEAT_INTERVAL 300 // Minimum time between beats (ms)
+
+int previousX = 0;
+int previousY = 60;
+int x = 0;
+int sensorValue;
+int smoothedValue;
+long lastBeatTime = 0;
+int bpm = 0;
+int beatCount = 0;
+long lastCalculationTime = 0;
+int sensorReadings[WINDOW_SIZE];
+int readIndex = 0;
+long total = 0;
+
+void setup() {
+  Serial.begin(9600);
+
+  if (!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    while (1);
+  }
+
+  
+  oled.clearDisplay();
+  oled.display();
+  delay(1000);
+
+  // Initialize moving average array
+  for (int i = 0; i < WINDOW_SIZE; i++) {
+    sensorReadings[i] = analogRead(SENSOR_PIN);
+    total += sensorReadings[i];
+  }
+}
+
+void loop() {
+  int rawValue = analogRead(SENSOR_PIN);
+
+  // Update moving average
+  total -= sensorReadings[readIndex];
+  sensorReadings[readIndex] = rawValue;
+  total += sensorReadings[readIndex];
+  readIndex = (readIndex + 1) % WINDOW_SIZE;
+  smoothedValue = total / WINDOW_SIZE;
+
+  Serial.print("Raw: ");
+  Serial.print(rawValue);
+  Serial.print(" | Smoothed: ");
+  Serial.println(smoothedValue);
+
+  int mappedValue = map(smoothedValue, 450, 650, 10, 35); // Adjust based on real sensor values
+  int y = 60 - mappedValue;
+
+  if (x >= SCREEN_WIDTH) {
+    x = 0;
+    previousX = 0;
+    oled.clearDisplay();
+  }
+
+  // Draw heart rate waveform
+  oled.drawLine(previousX, previousY, x, y, WHITE);
+  previousX = x;
+  previousY = y;
+  x++;
+
+  detectHeartbeat();
+
+  // **Clear only the BPM area instead of entire screen**
+  oled.fillRect(0, 0, SCREEN_WIDTH, 16, BLACK); 
+  oled.setCursor(0, 0);
+  oled.setTextSize(2);
+  oled.setTextColor(SSD1306_WHITE);
+  oled.print("BPM: ");
+  oled.println(bpm);
+
+  // **Update OLED display after all changes**
+  oled.display();
+}
+
+
+void detectHeartbeat() {
+  if (millis() - lastBeatTime > MIN_BEAT_INTERVAL) { 
+    static int lastValue = 0;
+    int change = smoothedValue - lastValue;
+
+    if (change > PEAK_THRESHOLD) { 
+      long currentTime = millis();
+      long interval = currentTime - lastBeatTime;
+      lastBeatTime = currentTime;
+
+      bpm = 60000 / interval; 
+
+      Serial.print("Beat detected! BPM: ");
+      Serial.println(bpm);
+    }
+
+    lastValue = smoothedValue;
+  }
+}
